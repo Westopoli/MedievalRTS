@@ -65,6 +65,12 @@ def start_attack(game: Game, attacker_id: int, target_id: int) -> bool:
     stats = _get_entities().get_stats(attacker.kind)
     if stats.damage_per_sec == 0:
         return False
+    # Idempotent re-issue: if already attacking the same target, preserve
+    # accumulator state. Re-issuing the same command each tick (e.g., from
+    # a player UI or the umbrella) must NOT reset damage progress.
+    existing = _attack_state.get(attacker_id)
+    if existing is not None and existing.target_id == target_id:
+        return True
     _attack_state[attacker_id] = _AttackState(target_id=target_id)
     return True
 
