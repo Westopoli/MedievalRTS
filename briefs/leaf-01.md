@@ -8,22 +8,31 @@ contract_imports:
   - sim.contract.Map
   - sim.contract.Game
   - sim.contract.Entity
-  - sim.contract.TerrainKind
   - sim.contract.MAP_W
   - sim.contract.MAP_H
 do_not_edit:
   - sim/contract.py
   - sim/__init__.py
   - sim/entities.py
+  - tests/test_entities.py
   - sim/walls.py
+  - tests/test_walls.py
   - sim/pathfinding.py
+  - tests/test_pathfinding.py
   - sim/visibility.py
+  - tests/test_visibility.py
   - sim/gather.py
+  - tests/test_gather.py
   - sim/combat.py
+  - tests/test_combat.py
   - sim/building.py
+  - tests/test_building.py
   - sim/commands.py
+  - tests/test_commands.py
   - sim/ai.py
+  - tests/test_ai.py
   - sim/game.py
+  - tests/test_game.py
   - tests/test_umbrella.py
   - tests/conftest.py
   - SPEC.md

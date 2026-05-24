@@ -6,21 +6,30 @@ test_file: tests/test_entities.py
 impl_file: sim/entities.py
 contract_imports:
   - sim.contract.Entity
-  - sim.contract.EntityKind
   - sim.contract.Game
 do_not_edit:
   - sim/contract.py
   - sim/__init__.py
   - sim/map_gen.py
+  - tests/test_map_gen.py
   - sim/walls.py
+  - tests/test_walls.py
   - sim/pathfinding.py
+  - tests/test_pathfinding.py
   - sim/visibility.py
+  - tests/test_visibility.py
   - sim/gather.py
+  - tests/test_gather.py
   - sim/combat.py
+  - tests/test_combat.py
   - sim/building.py
+  - tests/test_building.py
   - sim/commands.py
+  - tests/test_commands.py
   - sim/ai.py
+  - tests/test_ai.py
   - sim/game.py
+  - tests/test_game.py
   - tests/test_umbrella.py
   - tests/conftest.py
   - SPEC.md
