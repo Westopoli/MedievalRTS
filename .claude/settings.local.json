@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest:*)",
+      "Bash(python -m pip:*)",
+      "Bash(python:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(test -*)",
+      "Bash(rm -r .swarm/pending/*)",
+      "PowerShell(python -m pytest*)",
+      "PowerShell(python *)",
+      "PowerShell(New-Item*)",
+      "PowerShell(Copy-Item*)"
+    ]
+  }
+}
