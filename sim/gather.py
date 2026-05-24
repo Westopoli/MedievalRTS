@@ -74,6 +74,27 @@ def _start_move(game: Game, eid: int, target: tuple[int, int]) -> bool:
     return pathfinding.start_move(game, eid, target)
 
 
+_ADJ_8 = ((0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1))
+
+
+def _start_move_adjacent_to(
+    game: Game, eid: int, target: tuple[int, int]
+) -> bool:
+    """Move toward a tile adjacent to ``target`` — first reachable wins.
+
+    Resource nodes (tree, gold_mine) and buildings are blocked by the
+    pathfinder, so a unit cannot path *onto* them. Gather/build flows must
+    instead path to one of the 8 surrounding tiles. Returns True if any
+    adjacent tile became the movement goal; False if all 8 are blocked or
+    unreachable.
+    """
+    for dx, dy in _ADJ_8:
+        cand = (target[0] + dx, target[1] + dy)
+        if _start_move(game, eid, cand):
+            return True
+    return False
+
+
 def _is_moving(eid: int) -> bool:
     from sim import pathfinding
     return pathfinding.is_moving(eid)
@@ -99,12 +120,18 @@ def start_gather(game: Game, entity_id: int, resource_node_id: int) -> bool:
     rkind = _resource_kind_for(node.kind)
     if rkind is None:
         return False
-    # Cancel any prior gather state (AC-8).
+    # Idempotent re-issue: if already gathering the same node, preserve
+    # state. Reissuing the same gather command each tick (umbrella pattern)
+    # must NOT reset gather_progress or movement.
+    existing = _gather_state.get(entity_id)
+    if existing is not None and existing.node_id == resource_node_id:
+        return True
+    # New target — cancel prior state (AC-8) and install fresh.
     _gather_state.pop(entity_id, None)
     _gather_state[entity_id] = _GatherState(
         node_id=resource_node_id, resource_kind=rkind, gather_progress=0
     )
-    _start_move(game, entity_id, node.pos)
+    _start_move_adjacent_to(game, entity_id, node.pos)
     return True
 
 
@@ -149,11 +176,11 @@ def tick_gather(game: Game) -> None:
                 # Re-issue move back to the node if still alive, else clear state.
                 node = _find_entity(game, state.node_id)
                 if _is_alive(node):
-                    _start_move(game, vid, node.pos)
+                    _start_move_adjacent_to(game, vid, node.pos)
                 else:
                     _gather_state.pop(vid, None)
             else:
-                _start_move(game, vid, tc.pos)
+                _start_move_adjacent_to(game, vid, tc.pos)
             continue
 
         node = _find_entity(game, state.node_id)
@@ -176,7 +203,7 @@ def tick_gather(game: Game) -> None:
                 if villager.carry_amount >= CARRY_CAP:
                     tc = _nearest_owned_tc(game, villager.owner, villager.pos)
                     if tc is not None:
-                        _start_move(game, vid, tc.pos)
+                        _start_move_adjacent_to(game, vid, tc.pos)
         else:
-            # Not at node, not moving → re-issue.
-            _start_move(game, vid, node.pos)
+            # Not at node, not moving → re-issue toward an adjacent tile.
+            _start_move_adjacent_to(game, vid, node.pos)
