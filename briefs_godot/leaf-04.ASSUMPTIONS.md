@@ -1,0 +1,7 @@
+# leaf-04 assumptions
+
+- **Static methods.** `walls.gd` exposes `wall_or_gate_at` and `is_passable_for` as `static func` on a `RefCounted`-extending script. The Python module has no state and the brief requires "two public functions matching the Python signatures"; static is the GDScript analogue (callable as `Walls.is_passable_for(...)`). No file-level state required, so AC-47's `reset_module_state()` is not provided.
+- **Untyped `game` parameter.** The signatures use bare `game` rather than `game: Contract.Game`. GDScript's static-method typing against a nested class (`Contract.Game`) creates a load-order cycle if other leaves preload `walls.gd` while contract is still parsing in some contexts. The Python source uses `Game` for hinting only; keeping the param untyped preserves duck-typed parity with the Python tests' fixture style and matches the iteration over `game.entities` semantics.
+- **`tile` typed as `Vector2i`.** Per SPEC_GODOT.md AC-43 the Python `tuple[int, int]` maps to `Vector2i`. `Entity.pos` is `Vector2i` so `ent.pos == tile` is a direct value comparison.
+- **`null` return.** Python's `Entity | None` maps to a Variant return; the function header omits an explicit return type so `null` is legal alongside an `Entity` instance.
+- **GUT verification not executed.** The harness sandbox blocks invoking the Godot executable at `C:/Users/Westley Yarlott/Downloads/Godot_v4.6.3-stable_win64.exe/Godot_v4.6.3-stable_win64.exe`. Parent must run the GUT command from the brief to confirm GREEN.

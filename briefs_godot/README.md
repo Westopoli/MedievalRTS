@@ -1,12 +1,13 @@
 # briefs_godot — Wave 1 of the Godot port cascade
 
-This directory holds the leaf briefs for **wave 1** of the Medieval RTS Godot port. Wave 1 = hand-port of all 11 Python sim modules to GDScript + per-leaf GUT parity tests.
+This directory holds the leaf briefs for **wave 1** of the Medieval RTS Godot port. Wave 1 = hand-port of the 11 non-contract Python sim modules to GDScript + per-leaf GUT parity tests.
+
+The shared type contract `godot/sim/contract.gd` is **parent-owned** and was written before the cascade spawned (mirrors `sim/contract.py`, asserted by `godot/tests/test_contract.gd`, 8/8 GREEN). The original leaf-01 was removed because the contract has no upstream dependency and creates a chicken-and-egg with the other 11 leaves' `preload("res://sim/contract.gd")` calls.
 
 ## Wave 1 leaves
 
 | Leaf | Module | Impl | Test | Python source |
 |---|---|---|---|---|
-| leaf-01 | type contract | `godot/sim/contract.gd` | `godot/tests/test_contract.gd` | `sim/contract.py` |
 | leaf-02 | map gen | `godot/sim/map_gen.gd` | `godot/tests/test_map_gen.gd` | `sim/map_gen.py` |
 | leaf-03 | entity stats + factories | `godot/sim/entities.gd` | `godot/tests/test_entities.gd` | `sim/entities.py` |
 | leaf-04 | walls + gates | `godot/sim/walls.gd` | `godot/tests/test_walls.gd` | `sim/walls.py` |

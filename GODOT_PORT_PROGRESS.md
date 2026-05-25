@@ -34,6 +34,24 @@ Running `/swarm` (planning skill). Parent (this chat) owns ALL planning. No suba
 - [x] Draft `briefs_godot/leaf-12.md` (game.gd)
 - [x] Draft `briefs_godot/README.md` (wave-1 summary)
 - [x] Hand-off message to user: "run /swarm-review next"
+- [x] Parent prep: godot/project.godot + GUT 9.4.0 vendored + parity fixture + RED umbrella (commit 4982ad9)
+- [x] Parent-owned godot/sim/contract.gd written + test_contract.gd 8/8 GREEN
+- [x] 11 leaves spawned in parallel (worktree isolation)
+- [x] All 11 leaves reported back; all wrote impl + test directly to godot/sim/ + godot/tests/
+- [x] First full GUT run: 121/127 PASS, 6 FAIL
+- [x] Fix: contract.gd::Game.tick now delegates to game.gd::tick_game (was push_error stub)
+- [ ] Fix: AC-72 byte-parity unreachable (Python MT vs GDScript PCG RNG mismatch) — needs structural-parity downgrade
+- [ ] Fix: leaf-11 test_rule3 mis-asserts (rule 2 barracks fires first at tick 0; rule 3 fires only after barracks built)
+- [ ] Fix: leaf-12 test_train_spawns_villager + umbrella late-game integration (depends on #1 + sim correctness pass)
+- [ ] Parent assumption-sweep across briefs_godot/leaf-*.ASSUMPTIONS.md before final merge
+- [ ] Clean up 12 git worktree branches (worktree-agent-*) — leaf cascade artifact
+
+## Wave 1 status: substantially complete, 121/127 GREEN, 6 known failures with root cause identified
+
+Failures by root cause:
+1. AC-72 byte-parity (2 tests): Python MT vs GDScript PCG RNG. Architectural — needs structural parity instead. Spec change required.
+2. leaf-11 ai test mis-assertion (1 test): Test expects rule 3 at tick 0, but rule 2 fires first. Test bug, not impl bug.
+3. Umbrella late-game integration (3 tests): downstream of #2 and possible AI behavior gap.
 
 ## Decisions already locked (do NOT re-litigate)
 - Layout: `godot/` subdir inside existing MedievalRTS repo.
