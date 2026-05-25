@@ -1,0 +1,27 @@
+; Godot 4.6 project file for the MedievalRTS port.
+; Engine version pinned by `compatibility` rendering for laptop GPUs.
+; Run from the repo root:
+;   "C:/Users/Westley Yarlott/Downloads/Godot_v4.6.3-stable_win64.exe" --path godot/
+
+config_version=5
+
+[application]
+
+config/name="MedievalRTS"
+config/description="Hand-port of the Python sim. Wave 1 = sim parity, render scaffolding."
+config/features=PackedStringArray("4.6", "GL Compatibility")
+run/main_scene=""
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[debug]
+
+gdscript/warnings/exclude_addons=true
