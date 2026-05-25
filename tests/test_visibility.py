@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sys
-import types
 from dataclasses import dataclass
 
 import pytest
 
+import sim.entities
+from sim import visibility as vis
 from sim.contract import (
     BuildingSnapshot,
     Entity,
@@ -18,10 +18,6 @@ from sim.contract import (
     Player,
 )
 
-
-# ---------------------------------------------------------------------------
-# Monkeypatch sim.entities.get_stats (leaf-02 in parallel; may not be on disk).
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class _Stats:
@@ -49,17 +45,8 @@ def _fake_get_stats(kind):
 
 @pytest.fixture(autouse=True)
 def _patch_entities(monkeypatch):
-    # Install (or override) sim.entities.get_stats for the duration of each test.
-    mod = sys.modules.get("sim.entities")
-    if mod is None:
-        mod = types.ModuleType("sim.entities")
-        sys.modules["sim.entities"] = mod
-    monkeypatch.setattr(mod, "get_stats", _fake_get_stats, raising=False)
+    monkeypatch.setattr(sim.entities, "get_stats", _fake_get_stats, raising=False)
     yield
-
-
-# Import visibility AFTER fixture autouse so get_stats import inside is patchable.
-from sim import visibility as vis  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

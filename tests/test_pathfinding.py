@@ -1,33 +1,30 @@
 """Tests for sim/pathfinding.py — leaf-04.
 
-Sibling leaves sim.walls and sim.entities may not yet be on disk. We inject
-lightweight stub modules into sys.modules BEFORE importing sim.pathfinding so
-the impl's `from sim.walls import is_passable_for` / `from sim.entities import
-get_stats` resolve to our controllable stubs. Documented in
-briefs/leaf-04.ASSUMPTIONS.md.
+Originally these tests injected stub `sim.walls` / `sim.entities` modules
+into `sys.modules` because the sibling leaves did not yet exist on disk.
+Both leaves are now real, so we monkeypatch the specific functions on the
+real modules per-test instead. That avoids leaking a stub `sim.walls`
+(missing `wall_or_gate_at`) into `sys.modules`, which used to break
+`pytest tests/` collection of `test_walls.py`.
 """
 
 from __future__ import annotations
 
-import sys
-import types
 from dataclasses import dataclass
 
 import pytest
 
+import sim.entities
+import sim.walls
+from sim import pathfinding
 from sim.contract import Entity, Game, Map, MAP_H, MAP_W, Player, TICK_HZ
 
-
-# ---------------------------------------------------------------------------
-# Sibling-API stubs (injected before sim.pathfinding import)
-# ---------------------------------------------------------------------------
 
 @dataclass
 class _Stats:
     speed_tiles_per_sec: float = 2.0
 
 
-# Controllable wall predicate; default = no walls.
 _wall_blocks: dict[tuple[int, int], int] = {}  # tile -> owner_required (-1 = blocks all)
 
 
@@ -36,33 +33,12 @@ def _is_passable_for(game, tile, owner):
         return True
     req = _wall_blocks[tile]
     if req == -1:
-        return False  # solid wall
-    return owner == req  # gate: only owner passes
+        return False
+    return owner == req
 
 
 def _get_stats(kind):
-    # Default speed = 2 tiles/sec
     return _Stats(speed_tiles_per_sec=2.0)
-
-
-def _install_stubs():
-    if "sim.walls" not in sys.modules:
-        m = types.ModuleType("sim.walls")
-        m.is_passable_for = _is_passable_for  # type: ignore[attr-defined]
-        sys.modules["sim.walls"] = m
-    else:
-        sys.modules["sim.walls"].is_passable_for = _is_passable_for  # type: ignore[attr-defined]
-    if "sim.entities" not in sys.modules:
-        m = types.ModuleType("sim.entities")
-        m.get_stats = _get_stats  # type: ignore[attr-defined]
-        sys.modules["sim.entities"] = m
-    else:
-        sys.modules["sim.entities"].get_stats = _get_stats  # type: ignore[attr-defined]
-
-
-_install_stubs()
-
-from sim import pathfinding  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +59,9 @@ def _new_entity(eid: int, kind: str, owner: int, pos: tuple[int, int], hp: int =
 
 
 @pytest.fixture(autouse=True)
-def _reset_state():
+def _reset_state(monkeypatch):
+    monkeypatch.setattr(sim.walls, "is_passable_for", _is_passable_for, raising=False)
+    monkeypatch.setattr(sim.entities, "get_stats", _get_stats, raising=False)
     _wall_blocks.clear()
     pathfinding._move_state.clear()
     yield

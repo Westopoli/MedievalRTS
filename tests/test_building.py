@@ -1,19 +1,18 @@
-"""Tests for sim.building — construction + training queues (AC-10, AC-11)."""
+"""Tests for sim.building — construction + training queues (AC-10, AC-11).
+
+Stubs for sibling APIs (sim.entities, sim.pathfinding) used to be installed
+as full replacement modules in sys.modules. Now we monkeypatch the specific
+functions on the real modules so the patches do not leak across test files.
+"""
 
 from __future__ import annotations
 
-import sys
-import types
-
 import pytest
 
+import sim.entities
+import sim.pathfinding
+import sim.building as B
 from sim.contract import Entity, Game, Map, Player, POP_CAP_MAX, TICK_HZ
-
-
-# ---------------------------------------------------------------------------
-# Sibling-API stubs (sim.entities, sim.pathfinding). Real impls land in other
-# leaves; we monkeypatch minimal versions for this leaf's unit tests.
-# ---------------------------------------------------------------------------
 
 
 _NEXT_ID = [1000]
@@ -68,50 +67,27 @@ def _get_stats(kind: str) -> dict:
     return _stats_for(kind)
 
 
-_MOVING: dict[int, tuple[int, int]] = {}
-
-
-def _start_move(game: Game, entity_id: int, target: tuple[int, int]) -> bool:
-    _MOVING[entity_id] = target
-    return True
-
-
-def _is_moving(game: Game, entity_id: int) -> bool:
-    return entity_id in _MOVING
-
-
 @pytest.fixture(autouse=True)
 def _install_sibling_stubs(monkeypatch):
-    # Reset state.
     _NEXT_ID[0] = 1000
-    _MOVING.clear()
+    moving: dict[int, tuple[int, int]] = {}
 
-    ents_mod = types.ModuleType("sim.entities")
-    ents_mod.spawn_unit = _spawn_unit
-    ents_mod.spawn_building = _spawn_building
-    ents_mod.is_building = _is_building
-    ents_mod.is_unit = _is_unit
-    ents_mod.get_stats = _get_stats
-    monkeypatch.setitem(sys.modules, "sim.entities", ents_mod)
+    def start_move(game, entity_id, target):
+        moving[entity_id] = target
+        return True
 
-    path_mod = types.ModuleType("sim.pathfinding")
-    path_mod.start_move = _start_move
-    path_mod.is_moving = _is_moving
-    monkeypatch.setitem(sys.modules, "sim.pathfinding", path_mod)
+    monkeypatch.setattr(sim.entities, "spawn_unit", _spawn_unit)
+    monkeypatch.setattr(sim.entities, "spawn_building", _spawn_building)
+    monkeypatch.setattr(sim.entities, "is_building", _is_building)
+    monkeypatch.setattr(sim.entities, "is_unit", _is_unit)
+    monkeypatch.setattr(sim.entities, "get_stats", _get_stats)
+    monkeypatch.setattr(sim.pathfinding, "start_move", start_move)
 
-    # Reset building module state if already imported.
-    if "sim.building" in sys.modules:
-        b = sys.modules["sim.building"]
-        if hasattr(b, "_construction"):
-            b._construction.clear()
-        if hasattr(b, "_training"):
-            b._training.clear()
+    B._construction.clear()
+    B._training.clear()
     yield
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+    B._construction.clear()
+    B._training.clear()
 
 
 def _make_game(wood: int = 300, gold: int = 150) -> Game:
@@ -122,28 +98,20 @@ def _make_game(wood: int = 300, gold: int = 150) -> Game:
     return Game(players=players, entities=[], map=m)
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 def test_constants_exist():
-    from sim import building as B
     assert B.BUILD_COSTS["house"] == (30, 0, 10)
     assert B.TRAIN_COSTS["villager"] == (50, 0, 12, "town_center")
     assert B.TRAIN_COSTS["soldier"][3] == "barracks" and B.BUILDING_FOOTPRINT["barracks"] == (3, 3)
 
 
 def test_start_build_insufficient_wood_returns_false():
-    from sim import building as B
     g = _make_game(wood=10)
     villager = _spawn_unit(g, "villager", 0, (5, 5))
     assert B.start_build(g, villager.entity_id, "house", (8, 8)) is False
-    assert g.players[0].wood == 10  # no deduction on failure
+    assert g.players[0].wood == 10
 
 
 def test_start_build_house_success_deducts_and_installs():
-    from sim import building as B
     g = _make_game(wood=100)
     villager = _spawn_unit(g, "villager", 0, (5, 5))
     assert B.start_build(g, villager.entity_id, "house", (8, 8)) is True
@@ -151,9 +119,8 @@ def test_start_build_house_success_deducts_and_installs():
 
 
 def test_house_completes_after_10s_with_full_hp():
-    from sim import building as B
     g = _make_game(wood=100)
-    villager = _spawn_unit(g, "villager", 0, (8, 8))  # already adjacent
+    villager = _spawn_unit(g, "villager", 0, (8, 8))
     B.start_build(g, villager.entity_id, "house", (8, 8))
     for _ in range(TICK_HZ * 10):
         B.tick_construction(g)
@@ -163,7 +130,6 @@ def test_house_completes_after_10s_with_full_hp():
 
 
 def test_house_completion_bumps_pop_cap():
-    from sim import building as B
     g = _make_game(wood=100)
     villager = _spawn_unit(g, "villager", 0, (8, 8))
     B.start_build(g, villager.entity_id, "house", (8, 8))
@@ -173,7 +139,6 @@ def test_house_completion_bumps_pop_cap():
 
 
 def test_pop_cap_clamped_at_max():
-    from sim import building as B
     g = _make_game(wood=10000)
     g.players[0].pop_cap = POP_CAP_MAX - 2
     villager = _spawn_unit(g, "villager", 0, (8, 8))
@@ -184,7 +149,6 @@ def test_pop_cap_clamped_at_max():
 
 
 def test_start_train_villager_at_tc():
-    from sim import building as B
     g = _make_game(wood=100)
     tc = _spawn_building(g, "town_center", 0, (10, 10))
     assert B.start_train(g, tc.entity_id, "villager") is True
@@ -192,16 +156,14 @@ def test_start_train_villager_at_tc():
 
 
 def test_second_train_blocked_while_queue_full():
-    from sim import building as B
     g = _make_game(wood=200)
     tc = _spawn_building(g, "town_center", 0, (10, 10))
     B.start_train(g, tc.entity_id, "villager")
     assert B.start_train(g, tc.entity_id, "villager") is False
-    assert g.players[0].wood == 150  # only one deduction
+    assert g.players[0].wood == 150
 
 
 def test_training_completes_and_spawns_adjacent_unit():
-    from sim import building as B
     g = _make_game(wood=100)
     tc = _spawn_building(g, "town_center", 0, (10, 10))
     B.start_train(g, tc.entity_id, "villager")
@@ -215,7 +177,6 @@ def test_training_completes_and_spawns_adjacent_unit():
 
 
 def test_training_blocked_when_pop_full():
-    from sim import building as B
     g = _make_game(wood=500)
     g.players[0].pop_cap = 2
     _spawn_unit(g, "villager", 0, (5, 5))
@@ -226,25 +187,20 @@ def test_training_blocked_when_pop_full():
 
 
 def test_place_building_immediate_no_cost_full_hp():
-    from sim import building as B
     g = _make_game(wood=50)
     e = B.place_building_immediate(g, kind="house", tile=(8, 8), owner=0)
     assert e.kind == "house" and e.owner == 0
     assert e.hp == e.max_hp == 200
-    assert g.players[0].wood == 50  # no deduction
+    assert g.players[0].wood == 50
 
 
 def test_start_build_rejects_invalid_kind():
-    from sim import building as B
     g = _make_game()
     villager = _spawn_unit(g, "villager", 0, (5, 5))
-    # town_center not player-buildable.
     assert B.start_build(g, villager.entity_id, "town_center", (8, 8)) is False
 
 
 def test_start_train_rejects_wrong_building():
-    from sim import building as B
     g = _make_game()
     barracks = _spawn_building(g, "barracks", 0, (10, 10))
-    # villager trained at TC, not barracks.
     assert B.start_train(g, barracks.entity_id, "villager") is False

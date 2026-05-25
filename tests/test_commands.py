@@ -64,18 +64,19 @@ def test_authority_mismatch_drops_move():
     assert not pathfinding.is_moving(p1_vil.entity_id)
 
 
-def test_fog_blocks_move_to_unseen_tile():
+def test_move_into_unseen_tile_allowed():
+    # Move commands into UNSEEN tiles are allowed — scouts (and any unit)
+    # must be able to walk into the fog. Attacks still require visibility,
+    # exercised separately by test_attack_unseen_enemy_blocked.
     g = _fresh_game()
     p0_vil = _villager(g, 0)
-    # TC1 area is far from player 0's vision (TC0=(10,30), TC1=(70,30)).
     target = (TC1[0] + 2, TC1[1])
-    # Sanity: that tile is unseen for player 0
     assert g.visibility[0][target[0]][target[1]] == "unseen"
     cmd = Command(kind="move", issuing_player=0,
                   entity_id=p0_vil.entity_id, target_tile=target)
     result = cmds.apply_command(g, cmd)
-    assert result is False
-    assert not pathfinding.is_moving(p0_vil.entity_id)
+    assert result is True
+    assert pathfinding.is_moving(p0_vil.entity_id)
 
 
 def test_fog_cheat_bypasses_fog():

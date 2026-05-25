@@ -1,23 +1,21 @@
 """Tests for sim.combat — combat tick + death cleanup (AC-14, AC-25).
 
-Parallel-leaf siblings `sim.entities` and `sim.pathfinding` are stubbed via
-sys.modules so combat can be tested in isolation.
+Originally stubbed `sim.entities` and `sim.pathfinding` via `sys.modules`
+injection. Now patches functions on the real modules so the stubs do not
+leak across test files (which used to break `pytest tests/` collection or
+later tests that re-bound `sim.<leaf>` attributes on the `sim` package).
 """
 
 from __future__ import annotations
 
-import sys
-import types
 from dataclasses import dataclass
 
 import pytest
 
+import sim.entities
+import sim.pathfinding
+import sim.combat as combat
 from sim.contract import Entity, Game, Map, Player, TICK_HZ
-
-
-# ---------------------------------------------------------------------------
-# Sibling stubs (monkeypatched into sys.modules before importing sim.combat)
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -37,15 +35,8 @@ _STATS_BY_KIND: dict[str, _Stats] = {
 }
 
 
-def _install_stubs() -> dict:
-    """Install fake sim.entities + sim.pathfinding into sys.modules.
-
-    Returns a dict tracking pathfinding state for assertions.
-    """
-    entities_mod = types.ModuleType("sim.entities")
-    entities_mod.get_stats = lambda kind: _STATS_BY_KIND[kind]
-    sys.modules["sim.entities"] = entities_mod
-
+@pytest.fixture(autouse=True)
+def stubs(monkeypatch):
     move_state: dict[int, tuple[int, int]] = {}
 
     def start_move(game, entity_id, target_tile):
@@ -58,29 +49,14 @@ def _install_stubs() -> dict:
     def is_moving(entity_id):
         return entity_id in move_state
 
-    pf_mod = types.ModuleType("sim.pathfinding")
-    pf_mod.start_move = start_move
-    pf_mod.cancel_move = cancel_move
-    pf_mod.is_moving = is_moving
-    sys.modules["sim.pathfinding"] = pf_mod
+    monkeypatch.setattr(sim.entities, "get_stats", lambda kind: _STATS_BY_KIND[kind])
+    monkeypatch.setattr(sim.pathfinding, "start_move", start_move)
+    monkeypatch.setattr(sim.pathfinding, "cancel_move", cancel_move)
+    monkeypatch.setattr(sim.pathfinding, "is_moving", is_moving)
 
-    return {"move_state": move_state}
-
-
-@pytest.fixture(autouse=True)
-def stubs():
-    state = _install_stubs()
-    # Reset combat module attack state between tests
-    if "sim.combat" in sys.modules:
-        sys.modules["sim.combat"]._attack_state.clear()
-    yield state
-    sys.modules.pop("sim.entities", None)
-    sys.modules.pop("sim.pathfinding", None)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+    combat._attack_state.clear()
+    yield {"move_state": move_state}
+    combat._attack_state.clear()
 
 
 def _make_game(entities: list[Entity]) -> Game:
@@ -99,13 +75,7 @@ def _ent(eid, kind, owner, pos, hp=None):
                   hp=hp, max_hp=stats.max_hp)
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 def test_start_attack_same_owner_returns_false():
-    from sim import combat
     a = _ent(1, "soldier", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=0, pos=(6, 5))
     g = _make_game([a, b])
@@ -114,7 +84,6 @@ def test_start_attack_same_owner_returns_false():
 
 
 def test_start_attack_villager_returns_false():
-    from sim import combat
     v = _ent(1, "villager", owner=0, pos=(5, 5))
     enemy = _ent(2, "soldier", owner=1, pos=(6, 5))
     g = _make_game([v, enemy])
@@ -122,7 +91,6 @@ def test_start_attack_villager_returns_false():
 
 
 def test_start_attack_valid_installs_state():
-    from sim import combat
     a = _ent(1, "soldier", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=1, pos=(6, 5))
     g = _make_game([a, b])
@@ -132,7 +100,6 @@ def test_start_attack_valid_installs_state():
 
 def test_adjacent_soldiers_one_second_damage():
     """AC-14: after TICK_HZ ticks (1s), target hp == max_hp - damage_per_sec."""
-    from sim import combat
     a = _ent(1, "soldier", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=1, pos=(6, 5))
     g = _make_game([a, b])
@@ -143,7 +110,6 @@ def test_adjacent_soldiers_one_second_damage():
 
 
 def test_target_killed_removed_from_entities():
-    from sim import combat
     a = _ent(1, "soldier", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=1, pos=(6, 5), hp=5)
     g = _make_game([a, b])
@@ -156,7 +122,6 @@ def test_target_killed_removed_from_entities():
 
 
 def test_all_attackers_cleared_when_target_dies():
-    from sim import combat
     a1 = _ent(1, "soldier", owner=0, pos=(5, 5))
     a2 = _ent(2, "soldier", owner=0, pos=(7, 5))
     target = _ent(3, "soldier", owner=1, pos=(6, 5), hp=5)
@@ -173,7 +138,6 @@ def test_all_attackers_cleared_when_target_dies():
 
 
 def test_out_of_range_attacker_issues_move(stubs):
-    from sim import combat
     a = _ent(1, "archer", owner=0, pos=(0, 0))
     b = _ent(2, "soldier", owner=1, pos=(15, 15))
     g = _make_game([a, b])
@@ -184,18 +148,16 @@ def test_out_of_range_attacker_issues_move(stubs):
 
 
 def test_cancel_attack_clears_state():
-    from sim import combat
     a = _ent(1, "soldier", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=1, pos=(6, 5))
     g = _make_game([a, b])
     combat.start_attack(g, 1, 2)
     combat.cancel_attack(1)
     assert combat.is_attacking(1) is False
-    combat.cancel_attack(999)  # silent no-op
+    combat.cancel_attack(999)
 
 
 def test_archer_in_range_does_damage():
-    from sim import combat
     a = _ent(1, "archer", owner=0, pos=(5, 5))
     b = _ent(2, "soldier", owner=1, pos=(9, 8))  # Chebyshev = 4, range 5
     g = _make_game([a, b])
