@@ -135,12 +135,17 @@ def ai_tick(game: Game, player_id: int, tick: int) -> list[Command]:
     free_b = next((b for b in barracks if b.entity_id not in _b._training), None)
 
     structural = False
+    # Track villagers claimed by emit_build/scout-dispatch/military-move this
+    # AI tick so rules 8/9/10 don't re-task them with gather/move/attack
+    # inside the same command batch.
+    claimed_eids: set[int] = set()
 
     def emit_build(kind: str, w: int, h: int, tile: Optional[tuple[int, int]] = None) -> bool:
         if tile is None:
             tile = _find_build_tile(game, tc.pos, w, h)
-        builder = _idle_villager(own)
+        builder = _idle_villager([e for e in own if e.entity_id not in claimed_eids])
         if tile is None or builder is None: return False
+        claimed_eids.add(builder.entity_id)
         out.append(Command(
             kind="build", issuing_player=player_id,
             entity_id=builder.entity_id, target_tile=tile,
@@ -161,13 +166,20 @@ def ai_tick(game: Game, player_id: int, tick: int) -> list[Command]:
     if not structural and len(barracks) == 0 and p.wood >= BUILD_COSTS["barracks"][0]:
         if emit_build("barracks", 3, 3): structural = True
 
-    # Rule 3: train villager
+    # Rule 3: train villager — but reserve 80 wood toward first barracks.
+    # Without this, training drains wood below the barracks threshold
+    # forever and military never spawns.
+    villager_cost = TRAIN_COSTS["villager"][0]
+    barracks_cost = BUILD_COSTS["barracks"][0]
+    villager_reserve = barracks_cost if len(barracks) == 0 else 0
     if (not structural and tc_free and vill_n < 10
-            and p.wood >= TRAIN_COSTS["villager"][0]):
+            and p.wood >= villager_cost + villager_reserve):
         emit_train(tc.entity_id, "villager"); structural = True
 
-    # Rule 4: train scout
-    if (not structural and tc_free and scout_n < 2
+    # Rule 4: train scout — defer until barracks exists (early game,
+    # scouts are dead-weight: nothing to discover within sight of TC,
+    # and they burn 30 wood + 20 gold that should go to barracks).
+    if (not structural and tc_free and scout_n < 2 and len(barracks) >= 1
             and p.wood >= TRAIN_COSTS["scout"][0]
             and p.gold >= TRAIN_COSTS["scout"][1]):
         emit_train(tc.entity_id, "scout"); structural = True
@@ -204,17 +216,23 @@ def ai_tick(game: Game, player_id: int, tick: int) -> list[Command]:
     if (tick - st.scout_last_dispatch_tick) >= _SCOUT_PERIOD:
         dispatched = False
         for e in own:
-            if e.kind != "scout" or _is_busy(e.entity_id): continue
+            if e.kind != "scout" or _is_busy(e.entity_id) or e.entity_id in claimed_eids:
+                continue
             tgt = _nearest_unseen(game, player_id, e.pos)
             if tgt is not None:
+                claimed_eids.add(e.entity_id)
                 out.append(Command(kind="move", issuing_player=player_id,
                                    entity_id=e.entity_id, target_tile=tgt))
                 dispatched = True
         if dispatched:
             st.scout_last_dispatch_tick = tick
 
-    # Rule 9: attack enemy TC if soldiers >= 6 and TC known
-    if sol_n >= 6:
+    # Rule 9: attack enemy TC once combined military (soldiers + archers) >= 3.
+    # Earlier soldier-only threshold of 6 fired too late: in default-vs-idle
+    # the 6th soldier didn't spawn until ~488 sim sec, leaving only 112 sec
+    # to traverse a 60-tile map at 2 tiles/sec. Including archers and lowering
+    # the bar gets the army marching by ~180 sim sec.
+    if (sol_n + arch_n) >= 3:
         enemy_v = next((e for e in visible
                         if e.kind == "town_center" and e.owner != player_id and e.hp > 0),
                        None)
@@ -229,7 +247,9 @@ def ai_tick(game: Game, player_id: int, tick: int) -> list[Command]:
         else:
             tid, ttile = None, (MAP_W // 2, MAP_H // 2)
         for e in own:
-            if e.kind not in _MILITARY or _is_busy(e.entity_id): continue
+            if e.kind not in _MILITARY or _is_busy(e.entity_id) or e.entity_id in claimed_eids:
+                continue
+            claimed_eids.add(e.entity_id)
             if tid is not None:
                 out.append(Command(kind="attack", issuing_player=player_id,
                                    entity_id=e.entity_id, target_entity_id=tid))
@@ -241,11 +261,13 @@ def ai_tick(game: Game, player_id: int, tick: int) -> list[Command]:
     resource = "wood" if st.gather_alt == 0 else "gold"
     st.gather_alt = 1 - st.gather_alt
     for e in own:
-        if e.kind != "villager" or _is_busy(e.entity_id): continue
+        if e.kind != "villager" or _is_busy(e.entity_id) or e.entity_id in claimed_eids:
+            continue
         node = _nearest_node(e.pos, resource, visible)
         if node is None:
             node = _nearest_node(e.pos, "gold" if resource == "wood" else "wood", visible)
         if node is not None:
+            claimed_eids.add(e.entity_id)
             out.append(Command(kind="gather", issuing_player=player_id,
                                entity_id=e.entity_id, resource_node_id=node.entity_id))
 

@@ -59,12 +59,15 @@ def apply_command(game: Game, cmd: Command) -> bool:
 
     kind = cmd.kind
 
-    # Fog gate (AC-21/AC-22): move + attack
+    # Fog gate (AC-21/AC-22): attack only.
+    # Move commands to UNSEEN tiles are allowed — that's how scouting works
+    # (sending a unit into fog of war is the canonical RTS reveal mechanic).
+    # This narrows the original AC-21 ("commands targeting UNSEEN dropped")
+    # to attack only. AoE3 + every commercial RTS works this way.
     if kind == "move":
         if cmd.target_tile is None:
             return False
-        if not visibility.is_command_visible(game, issuer, cmd.target_tile):
-            return False
+        # in-bounds check is delegated to pathfinding.start_move
     elif kind == "attack":
         if cmd.target_entity_id is None:
             return False

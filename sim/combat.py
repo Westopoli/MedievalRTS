@@ -126,8 +126,29 @@ def tick_combat(game: Game) -> None:
                         pass
                     _clear_all_targeting(dead_id)
         else:
-            # Out of range — chase target's current tile if not already
+            # Out of range — chase target's current tile if not already.
+            # Buildings (and resource nodes) block pathing, so we must
+            # target an adjacent tile rather than the target's pos. Try
+            # the target tile first; if pathing fails, walk one of the
+            # 8 surrounding tiles.
             tgt_tile = target.pos
-            if state.move_target != tgt_tile or not pf.is_moving(attacker_id):
-                pf.start_move(game, attacker_id, tgt_tile)
+            # Re-path only when not already moving, OR when the target has
+            # shifted and our cached destination is stale. Comparing
+            # state.move_target (which may be an adjacent-fallback tile)
+            # against tgt_tile (the target's actual pos) was always-unequal
+            # for buildings, so start_move ran every tick and reset the
+            # path's progress, pinning the attacker in place.
+            needs_repath = not pf.is_moving(attacker_id)
+            if not needs_repath and state.move_target is not None:
+                if _chebyshev(state.move_target, tgt_tile) > 1:
+                    needs_repath = True  # target moved beyond adjacent ring
+            if needs_repath:
+                ok = pf.start_move(game, attacker_id, tgt_tile)
+                if not ok:
+                    for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0),
+                                   (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                        cand = (tgt_tile[0] + dx, tgt_tile[1] + dy)
+                        if pf.start_move(game, attacker_id, cand):
+                            tgt_tile = cand
+                            break
                 state.move_target = tgt_tile
