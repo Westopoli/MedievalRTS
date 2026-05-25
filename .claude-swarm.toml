@@ -9,18 +9,31 @@ umbrella_test_cmd  = "python -m pytest tests/test_umbrella.py -x -q"
 graphify_cmd       = ""
 
 parent_owned = [
-  "sim/contract.py",
-  "sim/__init__.py",
-  "tests/test_umbrella.py",
-  "tests/conftest.py",
+  # Python sim (wave done; out of scope for Godot wave)
+  "sim/**",
+  "tests/**",
+  "_balance/**",
   "SPEC.md",
   ".claude-swarm.toml",
   "briefs/**",
+  "GODOT_PORT_PROGRESS.md",
+  # Godot port shared planning artifacts
+  "SPEC_GODOT.md",
+  "briefs_godot/**",
+  # Godot project shell (parent-owned wave-1 scaffolding)
+  "godot/project.godot",
+  "godot/icon.svg",
+  "godot/icon.png",
+  "godot/scenes/**",
+  "godot/scripts/**",
+  "godot/addons/**",
+  "godot/tests/test_umbrella.gd",
+  "godot/tests/fixtures/**",
+  # Misc Godot tooling
+  "godot/export_presets.cfg",
+  # Out-of-scope assets
   "app/**",
   "assets/**",
-  "*.tscn",
-  "*.gd",
-  "project.godot",
 ]
 
 [invariants]
