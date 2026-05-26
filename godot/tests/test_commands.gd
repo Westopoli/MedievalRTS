@@ -99,6 +99,13 @@ func before_each() -> void:
     Commands.set_module("building", StubBuilding)
 
 
+func after_each() -> void:
+    # Clear the stub registry so subsequent test files (test_game,
+    # test_umbrella) get real sibling modules from Commands._resolve(),
+    # not the stubs injected above.
+    Commands.reset_module_state()
+
+
 func _make_game() -> Contract.Game:
     var g = Contract.Game.new()
     var p0 = Contract.Player.new()

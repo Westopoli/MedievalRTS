@@ -14,6 +14,8 @@ const Pathfinding = preload("res://sim/pathfinding.gd")
 const Gather = preload("res://sim/gather.gd")
 const Combat = preload("res://sim/combat.gd")
 const Building = preload("res://sim/building.gd")
+const Commands = preload("res://sim/commands.gd")
+const Visibility = preload("res://sim/visibility.gd")
 
 
 func before_each() -> void:
@@ -22,6 +24,8 @@ func before_each() -> void:
     Gather.reset_module_state()
     Combat.reset_module_state()
     Building.reset_module_state()
+    Commands.reset_module_state()
+    Visibility.reset_module_state()
 
 const _SIBLING_PATHS := [
     "res://sim/commands.gd",

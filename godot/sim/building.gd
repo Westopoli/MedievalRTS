@@ -256,3 +256,5 @@ static func place_building_immediate(game, kind: String, tile: Vector2i, owner: 
 static func reset_module_state() -> void:
     _construction.clear()
     _training.clear()
+    entities_override = null
+    pathfinding_override = null

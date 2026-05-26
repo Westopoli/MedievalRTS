@@ -69,9 +69,9 @@ class _PathfindingStub:
 
 func before_each() -> void:
     _EntitiesStub.next_id = 1000
+    Building.reset_module_state()
     Building.entities_override = _EntitiesStub
     Building.pathfinding_override = _PathfindingStub
-    Building.reset_module_state()
 
 
 func after_each() -> void:

@@ -145,3 +145,147 @@ Resumed mid-iteration. Built `_balance/probe_military.py` to log P0 military pos
 ### Next pending pick
 
 Godot frontend port — start or defer further (e.g., add 6th strategy, address P0 spawn bias first). User's call.
+
+---
+
+## Session Pause — 2026-05-25 (Godot port wave 1)
+
+**Lane / context:** single context (`iCode/Demos/MedievalRTS/`).
+**Active workstream/task:** Godot port wave 1 — substantially complete, 124/127 GUT tests GREEN, 3 known cross-file pollution failures.
+**Status:** in-progress, awaiting user direction on the SIX optional follow-ups below.
+
+### Where we are
+
+In this session: confirmed sim/balance complete from prior session (105/105 pytest), pushed `1cc5e95`. Then planned and executed the entire Godot port wave 1 in one session via `/swarm`. Sequence:
+
+1. Drafted `SPEC_GODOT.md` (254 lines, AC-38..AC-73) + 12 leaf briefs in `briefs_godot/` (commit `a6ef4f7`).
+2. `/swarm-review` → 12/12 PASS after stripping kind-array imports + ambiguous verbs.
+3. Parent wave-1 scaffolding: `godot/project.godot` + GUT 9.4.0 vendored + parity fixture + RED umbrella (commit `4982ad9`).
+4. Wrote `godot/sim/contract.gd` as parent-owned scaffolding (removed leaf-01 because it conflicted with sibling preloads). Renumbered to 11 leaves. Re-ran `/swarm-review` → 11/11 PASS.
+5. Spawned 11 leaves in parallel (Agent tool with `isolation=worktree`). All 11 reported back; sandbox blocked Godot binary so verification deferred to parent.
+6. First full GUT run: 121/127 PASS, 6 FAIL (commit `23de69a`).
+7. Diagnostic test traced P1 economy pipeline tick-by-tick. Found four real bugs in the merged port:
+   - `combat.gd` missing `static` keyword on all tick functions + `_attack_state` var
+   - `contract.gd::Game.tick` still a push_error stub instead of delegating to `game.gd::tick_game`
+   - `ai.gd::_construction_for` and `_is_training` used `"_X" in b` which silently returns false for Script-static-var introspection
+   - `ai.gd` never pre-claimed in-construction villagers; `_idle_villager` fallback re-targeted the same villager every emit period, draining wood without progress
+8. Fixed all four, plus downgraded AC-72 byte-parity to structural parity (Python MT vs GDScript PCG can't match), plus fixed two leaf-side test bugs (rule 3 fixture mis-construction, train test missing pop_cap raise). Final: 124/127 PASS (commit `b4f7533`).
+
+### Last decision locked
+
+**Wave 1 sim parity port is shipping at 124/127 GREEN.** Every test file passes 100% in isolation. The 3 remaining failures are cross-FILE static-var pollution that the per-file `before_each` reset cannot fully eliminate. Practical CI workaround: run per-file. Permanent fix deferred to wave-2 cleanup.
+
+**Architectural locks from this session:**
+- `godot/sim/contract.gd` is parent-owned. No leaf may add, remove, or rename symbols there (SPEC_GODOT.md AC-45).
+- `godot/sim/<module>.gd` files use `static func` for every public function and `static var` for module-level state. Module-shared state lives on the script class, not an instance.
+- AC-72 byte-parity is REPLACED by structural parity (kind histograms + canonical TC positions + tree/gold counts within 25% slack). The original wording in SPEC_GODOT.md is now non-load-bearing; should be updated in a follow-up commit.
+- AI pre-claims in-construction villagers via `claimed_eids` at start of `ai_tick`. This is a GDScript-side guard added in `ai.gd`; Python's behavior is similar via `_is_busy` checks at call sites.
+- GUT 9.4.0 vendored at `godot/addons/gut/` (~2.6 MB committed). Vendored, not submodule.
+
+### Next pending pick (if awaiting user input)
+
+None explicit. SIX optional follow-ups available, user picks one (or none) next session:
+
+1. **Cross-file static-var pollution cleanup.** Permanent fix for the 3 remaining failures. Options: (a) introduce a global `pre_run_test` hook in GUT's `.gutconfig.json` that resets all sim module state per test, (b) refactor `static var _construction` etc. to instance-scoped on a `SimState` Resource passed through every tick function, (c) accept the 3 failures and document the per-file workaround in a CONTRIBUTING.md.
+
+2. **Update `SPEC_GODOT.md` AC-72** to match the structural-parity reality landed in `b4f7533`.
+
+3. **Parent assumption-sweep** across the 8 `briefs_godot/leaf-*.ASSUMPTIONS.md` files. Per the `/swarm` skill protocol, this runs after all leaves green and before any wave-2 work. Hard-flagged inferences to review: (a) Python MT vs GDScript PCG RNG in leaf-02, (b) leaf-03 hp values disagree between brief and Python (Python source won, brief was wrong: house=100 not 200, barracks=300 not 500), (c) leaf-05 hand-rolled binary min-heap with insertion-counter tie-break, (d) leaf-07 `static var _pf_override` Callable injection seam, (e) leaf-09 cost tuple → Array translation, (f) leaf-12 both-TCs-die same tick tiebreaker = lower player_id (NOT brief's null fallback).
+
+4. **Clean up 12 git worktree branches** (`worktree-agent-*`). Locked by the Agent runtime, gitignored, not blocking, but clutter. May need explicit unlock via `git worktree unlock` then `git worktree remove`.
+
+5. **Wave 2: render layer.** Per SPEC_GODOT.md §§ 6-10. Build `godot/scenes/Main.tscn`, `godot/scripts/main.gd` (tick accumulator), `godot/scripts/camera.gd` (edge-pan), `godot/scripts/render.gd` (TileMapLayer + ColorRect entity render + fog overlay + debug HUD). All parent-owned; not a swarm cascade.
+
+6. **Vertical slice playtest.** Once wave 2 lands, launch the actual Godot build, edge-pan around the 80×60 map, watch the AI play P1 economy in real time, confirm the slice goal (per SPEC_GODOT.md AC-68..AC-71).
+
+### Critical context to carry forward
+
+- **Sub-agents cannot execute the Godot binary.** Every leaf this session reported "needs input: Godot exec denied by sandbox" and could only static-review. Parent verified post-merge. For wave-2 sub-agents, plan on the same pattern — parent runs Godot, sub-agents code.
+- **AC-72 spec wording is stale.** SPEC_GODOT.md still says "byte-parity"; test code does structural parity. Reconcile before any wave-2 spec edit cycle.
+- **`_balance/` Python harness is still the source-of-truth for game balance.** Any AI tuning re-iteration MUST update the Python sim FIRST then port to GDScript. Tune-first-then-port lock from prior session still in effect.
+- **`commands.apply_command` for `build` cancels gather/move/attack BEFORE start_build.** Don't drop this guard during refactors; it's load-bearing for villager re-tasking.
+- **AI's `_EMIT_PERIOD = TICK_HZ * 2 = 60 ticks` throttles emissions.** Every 2 sim seconds, not every tick. Diagnostics that probe < 60 ticks will see one emit then silence.
+- **Worktrees at `.claude/worktrees/` are locked.** Won't auto-delete. Ignored by git.
+
+### Files Touched This Session
+
+- `sim/ai.py`, `sim/combat.py`, `sim/commands.py` — AI tuning patches landed (rule 9 threshold, combat re-issue idempotence, fog gate narrowed). Committed `183316c`.
+- `_balance/probe_military.py` — probe scaffold for diagnosing P1 military movement. Committed `183316c`.
+- `tests/test_building.py`, `tests/test_combat.py`, `tests/test_commands.py`, `tests/test_gather.py`, `tests/test_pathfinding.py`, `tests/test_visibility.py` — rewrote stub injection to `monkeypatch.setattr` on real modules; fixed collection-time + cross-test pollution. Committed `1cc5e95`.
+- `tests/conftest.py` — kept minimal sys.path setup; removed earlier draft of stronger pollution guard that broke gather.
+- `SPEC_GODOT.md` — drafted 254 lines, 36 ACs AC-38..AC-73. Committed `a6ef4f7`.
+- `briefs_godot/leaf-02.md..leaf-12.md` — 11 leaf briefs (leaf-01 removed pre-cascade). Committed `a6ef4f7`.
+- `briefs_godot/README.md`, `briefs_godot/leaf-*.ASSUMPTIONS.md` × 8 — wave-1 overview + per-leaf inference logs.
+- `GODOT_PORT_PROGRESS.md` — checkpoint file with full task list; all boxes checked at session end.
+- `.claude-swarm.toml` — extended `parent_owned` glob list for Godot wave.
+- `.gitignore` — added `.claude/` (worktrees).
+- `godot/project.godot`, `godot/.gitattributes`, `godot/.gitignore` — Godot project shell. Committed `4982ad9`.
+- `godot/addons/gut/` — GUT 9.4.0 vendored (~2.6 MB). Committed `4982ad9`.
+- `godot/tests/fixtures/parity_seed42_first600.csv` — Python ground-truth tick log, 38400 rows. Committed `4982ad9`.
+- `godot/tests/test_umbrella.gd` — RED → 8/8 GREEN. Committed `4982ad9`, updated `b4f7533`.
+- `godot/sim/contract.gd` — parent-owned type contract per SPEC_GODOT.md AC-41..AC-45. Updated `b4f7533` for `Game.tick` delegation.
+- `godot/sim/ai.gd, building.gd, combat.gd, commands.gd, entities.gd, game.gd, gather.gd, map_gen.gd, pathfinding.gd, visibility.gd, walls.gd` — full leaf cascade output. Committed `23de69a`. combat.gd + ai.gd patched in `b4f7533`.
+- `godot/tests/test_ai.gd, test_building.gd, test_combat.gd, test_commands.gd, test_contract.gd, test_entities.gd, test_game.gd, test_gather.gd, test_map_gen.gd, test_pathfinding.gd, test_visibility.gd, test_walls.gd` — per-leaf GUT tests. Multiple updated in `b4f7533`.
+
+---
+
+## Session Pause — 2026-05-26 (cross-file pollution fix — follow-up #1)
+
+**Lane / context:** single context (`iCode/Demos/MedievalRTS/`).
+**Active workstream/task:** Godot port wave 1 — cross-file GUT pollution resolved. 127/127 GREEN (1 pre-existing risky "did not assert" unrelated).
+**Status:** in-progress, awaiting user direction on follow-ups #2..#6.
+
+### Where we are
+
+Took follow-up #1 from the prior pause block. Per user instruction: confirm cause via print/isolation before asserting, not by guessing.
+
+Investigation:
+1. Ran full suite → reproduced 3 fails at `test_game.gd:196` + `test_umbrella.gd:139,140,152,153`.
+2. Ran each failing file in isolation → both 100% pass alone. Confirmed cross-file pollution.
+3. Audited `static var` + `reset_module_state` across all 11 sim modules. Found that `test_game.gd` and `test_umbrella.gd` only reset AI/Pathfinding/Gather/Combat/Building in `before_each` — they skipped `Commands` and `Visibility`.
+4. Pair-tested each prior test file with test_game.gd, then with test_umbrella.gd. Only `test_commands.gd` reproduced the failures in either pair. Single polluting source confirmed.
+5. Read `test_commands.gd` — `before_each` injects 4 stubs via `Commands.set_module(...)`. **No `after_each` cleanup.** `Commands._modules` retained stub refs into the next file.
+
+Symptom mechanism: subsequent files issued real commands → `Commands.apply_command` → `_resolve(name)` returned the stubbed scripts → stubs recorded calls but did not execute → no villager spawn, no AI economy, no match termination. The 3 reported "failures" were one polluting file × multiple assertions, not 3 separate architectural issues.
+
+### Fix landed (option C: source-fix + defensive resets + audit)
+
+| File | Change |
+|---|---|
+| `godot/tests/test_commands.gd` | Added `after_each()` → `Commands.reset_module_state()` |
+| `godot/tests/test_game.gd` | Added `Commands.reset_module_state()` + `Visibility.reset_module_state()` to `before_each`; preloaded both module consts |
+| `godot/tests/test_umbrella.gd` | Same defensive resets in `before_each` |
+| `godot/sim/building.gd` | `reset_module_state()` now also nulls `entities_override` + `pathfinding_override` (audit completeness — these were not cleared previously) |
+| `godot/tests/test_building.gd` | Reordered `before_each`: reset first, then set overrides (required by building.gd patch above) |
+
+Full GUT run after fix: **128 tests, 127 passing, 1 risky** (`test_rule9_does_not_fire_below_threshold` — pre-existing "Did not assert" warning, unrelated to pollution).
+
+### Last decision locked
+
+**Follow-up #1 closed.** The "3 cross-file pollution failures" framing in the prior pause block overstated the issue — actual cause was one missing `after_each` teardown. No SimState refactor needed, no global `pre_run_test` hook needed. Discipline rule for future test files: any test that calls `set_module()` or assigns `*_override` static vars MUST have an `after_each` that clears them (or the file's `before_each` peer must call `reset_module_state()` on the affected module).
+
+### Next pending pick (if awaiting user input)
+
+Five follow-ups remain from the prior block:
+
+2. **Update SPEC_GODOT.md AC-72** wording to match structural-parity reality landed in `b4f7533`.
+3. **Parent assumption-sweep** across 8 `briefs_godot/leaf-*.ASSUMPTIONS.md` files. Hard-flagged: (a) RNG mismatch (leaf-02), (b) hp value disagreement house=100 barracks=300 (leaf-03), (c) heap tie-break insertion-counter (leaf-05), (d) static var `_pf_override` Callable injection seam (leaf-07), (e) cost tuple → Array (leaf-09), (f) both-TCs-die same tick tiebreaker = lower player_id NOT brief's null fallback (leaf-12).
+4. **Clean up 12 git worktree branches** (`worktree-agent-*`) at `.claude/worktrees/`. Locked by Agent runtime; gitignored; not blocking.
+5. **Wave 2: render layer.** Per SPEC_GODOT.md §§ 6-10. Build `godot/scenes/Main.tscn` + `godot/scripts/main.gd` (tick accumulator) + `godot/scripts/camera.gd` (edge-pan) + `godot/scripts/render.gd` (TileMapLayer + ColorRect entities + fog overlay + debug HUD). Parent-owned, no swarm cascade.
+6. **Vertical slice playtest.** After wave 2 lands, launch Godot, edge-pan around the 80×60 map, watch AI play P1 economy in real time, confirm slice goal per SPEC_GODOT.md AC-68..AC-71.
+
+### Critical context to carry forward
+
+- Pollution discipline rule (see "Last decision locked" above) — apply to any future test file that injects overrides.
+- `godot/sim/contract.gd` is still parent-owned (SPEC_GODOT.md AC-45). Unchanged this session.
+- AC-72 spec wording still stale; follow-up #2 not yet taken.
+- Memory `[[medieval-rts-godot-port]]` notes that cross-FILE pollution leaks "despite reset_module_state" — that note is now OUT OF DATE for the specific test_commands.gd → test_game/umbrella chain that triggered it. Pollution can recur if new test files violate the discipline rule. Memory should be updated next sweep.
+
+### Files Touched This Session
+
+- `godot/tests/test_commands.gd` — added `after_each` reset
+- `godot/tests/test_game.gd` — added Commands + Visibility resets in `before_each`
+- `godot/tests/test_umbrella.gd` — added Commands + Visibility resets in `before_each`
+- `godot/tests/test_building.gd` — reordered `before_each` (reset before override assignment)
+- `godot/sim/building.gd` — `reset_module_state` clears override slots
+- `SESSION_LOG.md` — this block

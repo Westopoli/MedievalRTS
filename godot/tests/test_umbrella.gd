@@ -33,6 +33,8 @@ func before_each() -> void:
     Gather.reset_module_state()
     Combat.reset_module_state()
     Building.reset_module_state()
+    Commands.reset_module_state()
+    Visibility.reset_module_state()
 
 # -----------------------------------------------------------------------
 # Basic new_game shape
