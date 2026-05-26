@@ -289,3 +289,48 @@ Five follow-ups remain from the prior block:
 - `godot/tests/test_building.gd` — reordered `before_each` (reset before override assignment)
 - `godot/sim/building.gd` — `reset_module_state` clears override slots
 - `SESSION_LOG.md` — this block
+
+---
+
+## Session Pause — 2026-05-26 (AC-72 spec wording cleanup — follow-up #2)
+
+**Lane / context:** single context (`iCode/Demos/MedievalRTS/`).
+**Active workstream/task:** SPEC_GODOT.md cleanup so spec wording matches landed code.
+**Status:** done; commit + push.
+
+### Where we are
+
+Took follow-up #2. The landed parity tests assert structural parity (entity-kind histograms + canonical TC positions + tree/gold counts within ±25% slack) but SPEC_GODOT.md AC-72 still required byte-identical `(tick_count, entity_id, hp)` tuples for the first 600 ticks. AC-51 had the same stale "first 20 tile placements match Python byte-for-byte" wording. Section 15 step 8 said "byte-for-byte." All three rephrased.
+
+### Changes landed
+
+| File | Change |
+|---|---|
+| `SPEC_GODOT.md` AC-72 | Rewritten for structural parity + explicit rationale (MT vs PCG) + named the two test functions that verify it. Original wording archived in-text as retired. |
+| `SPEC_GODOT.md` AC-73 | Reframed: fixture is consulted for histogram + TC-position + resource-count, not tick-by-tick equality. |
+| `SPEC_GODOT.md` AC-51 | Same MT-vs-PCG rationale; retires the "first 20 tile placements byte-for-byte" clause. Determinism within GDScript still required. |
+| `SPEC_GODOT.md` § 15 step 8 | Wording aligned with revised AC-72. |
+| `QUEUE.md` | Row marked done. |
+| Memory `[[medieval-rts-godot-port]]` | Pollution-discipline rule rewritten (covered in follow-up #1 block above). |
+
+### What was deliberately left alone
+
+- Stale "AC-72 originally specified byte-parity" comments in `test_game.gd` and `test_umbrella.gd` — they correctly document the retired wording for readers of the test file and don't need a churn pass.
+- `briefs_godot/leaf-02.ASSUMPTIONS.md` mention of byte-parity — historical brief log, not load-bearing.
+- `GODOT_PORT_PROGRESS.md` mentions — that file is a checkpoint snapshot, not authoritative spec.
+
+### Next pending pick
+
+Four follow-ups remain:
+
+3. Parent assumption-sweep across `briefs_godot/leaf-*.ASSUMPTIONS.md` × 8.
+4. Clean up 12 git worktree branches.
+5. Wave 2: render layer.
+6. Vertical slice playtest (after wave 2).
+
+### Files Touched This Session
+
+- `SPEC_GODOT.md` — AC-51 / AC-72 / AC-73 / § 15 step 8 rewritten
+- `QUEUE.md` — AC-72 row marked done
+- `~/.claude/projects/.../memory/medieval-rts-godot-port.md` — pollution-discipline rule + dated lock reference
+- `SESSION_LOG.md` — this block
