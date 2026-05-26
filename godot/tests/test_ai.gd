@@ -77,9 +77,15 @@ func _fresh_p0_setup(g) -> void:
 
 
 # 1. Fresh game, rule 3 fires (train villager). wood=300 covers 50+80 reserve.
-func test_rule3_trains_villager_on_fresh_game():
+func test_rule3_trains_villager_when_barracks_exists():
+    # Rule 3 (train villager) is gated behind rules 1-2. Rule 1 (house) fires
+    # when pop_used >= pop_cap, rule 2 (first barracks) fires when no
+    # barracks exists. Pre-seed a barracks AND raise pop_cap above villager
+    # count so rule 3 becomes the first structural rule that satisfies.
     var g = _make_game(300, 150)
     _fresh_p0_setup(g)
+    g.entities.append(_make_entity(150, "barracks", 0, Vector2i(12, 30), 300))
+    g.players[0].pop_cap = 10
     var cmds = AI.ai_tick(g, 0, 0)
     assert_gt(cmds.size(), 0, "expected non-empty command list")
     var has_train_v = false

@@ -95,8 +95,11 @@ static func _is_busy(eid: int) -> bool:
     if c != null and c.has_method("is_attacking") and c.is_attacking(eid):
         return true
     var b = _load_or_null("res://sim/building.gd")
-    if b != null and "_construction" in b and eid in b._construction:
-        return true
+    if b != null:
+        if b._construction.has(eid):
+            return true
+        if b._training.has(eid):
+            return true
     return false
 
 
@@ -182,7 +185,7 @@ static func _visible_for(game, pid: int) -> Array:
 
 static func _construction_for(player_id: int) -> Array:
     var b = _load_or_null("res://sim/building.gd")
-    if b == null or not ("_construction" in b):
+    if b == null:
         return []
     var out: Array = []
     for c in b._construction.values():
@@ -193,9 +196,9 @@ static func _construction_for(player_id: int) -> Array:
 
 static func _is_training(building_id: int) -> bool:
     var b = _load_or_null("res://sim/building.gd")
-    if b == null or not ("_training" in b):
+    if b == null:
         return false
-    return building_id in b._training
+    return b._training.has(building_id)
 
 
 ## Return commands the AI wants to emit on this tick. Pure (no mutation).
@@ -254,6 +257,16 @@ static func ai_tick(game, player_id: int, tick: int) -> Array:
 
     var structural: bool = false
     var claimed_eids: Dictionary = {}
+    # Pre-claim any villager already in construction or training so subsequent
+    # rules don't re-task them. Mirrors the semantic intent of `_is_busy` on
+    # the Python side and prevents the AI from thrashing builds on the same
+    # villager every emit period.
+    var _b_mod = _load_or_null("res://sim/building.gd")
+    if _b_mod != null:
+        for bid in _b_mod._construction.keys():
+            var con: Dictionary = _b_mod._construction[bid]
+            if con.has("owner") and int(con["owner"]) == player_id:
+                claimed_eids[bid] = true
 
     # Rule 1: house
     if (pop_used >= p.pop_cap and p.wood >= int(_BUILD_COSTS["house"][0])

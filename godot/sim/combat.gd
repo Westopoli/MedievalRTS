@@ -18,7 +18,7 @@ const Contract = preload("res://sim/contract.gd")
 
 # File-level state per AC-47. Keys: attacker_id (int).
 # Values: Dictionary { target_id, in_range_ticks, applied_damage, move_target }.
-var _attack_state: Dictionary = {}
+static var _attack_state: Dictionary = {}
 
 
 static func _find_entity(game, entity_id: int):
@@ -41,7 +41,7 @@ static func _new_state(target_id: int) -> Dictionary:
     }
 
 
-func start_attack(game, attacker_id: int, target_id: int) -> bool:
+static func start_attack(game, attacker_id: int, target_id: int) -> bool:
     var attacker = _find_entity(game, attacker_id)
     var target = _find_entity(game, target_id)
     if attacker == null or attacker.hp <= 0:
@@ -63,15 +63,15 @@ func start_attack(game, attacker_id: int, target_id: int) -> bool:
     return true
 
 
-func cancel_attack(entity_id: int) -> void:
+static func cancel_attack(entity_id: int) -> void:
     _attack_state.erase(entity_id)
 
 
-func is_attacking(entity_id: int) -> bool:
+static func is_attacking(entity_id: int) -> bool:
     return _attack_state.has(entity_id)
 
 
-func _clear_all_targeting(target_id: int) -> void:
+static func _clear_all_targeting(target_id: int) -> void:
     var to_remove: Array = []
     for aid in _attack_state.keys():
         if _attack_state[aid].target_id == target_id:
@@ -80,7 +80,7 @@ func _clear_all_targeting(target_id: int) -> void:
         _attack_state.erase(aid)
 
 
-func tick_combat(game) -> void:
+static func tick_combat(game) -> void:
     var pf = load("res://sim/pathfinding.gd")
     var entities_mod = load("res://sim/entities.gd")
     # Snapshot keys — may mutate _attack_state during iteration.
@@ -140,5 +140,5 @@ func tick_combat(game) -> void:
                 state.move_target = tgt_tile
 
 
-func reset_module_state() -> void:
+static func reset_module_state() -> void:
     _attack_state.clear()
